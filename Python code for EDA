@@ -1,0 +1,74 @@
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width',1000)
+df = pd.read_csv('customer_shopping_behavior.csv')
+print(df.describe(include = 'all'))
+# there is NA in review ratings, we will fill NA using median based on each category
+df['Review Rating'] = df.groupby('Category')['Review Rating'].transform(lambda x:x.fillna(x.median()))
+print(f'this is after updating null values {df.isnull().sum()}')
+df.columns = df.columns.str.strip()
+df.columns = df.columns.str.lower()
+df.columns = df.columns.str.replace(' ','_')
+df = df.rename(columns={'purchase_amount_(usd)':'purchase_amount'})
+print(df.columns)
+#creating a column age_group
+labels = ['Young Adult', 'Adult', 'Middle-aged', 'Senior']
+df['age_group'] = pd.qcut(df['age'], q=4, labels = labels)
+print(df[['age', 'age_group']])
+print(df['frequency_of_purchases'].value_counts())
+#craete column purchase_frequency_days
+frequency_mapping = {'Fortnightly':14,
+                    'Weekly':7,
+                     'Monthly': 30,
+                     'Quarterly':90,
+                     'Annually': 365,
+                     'Every 3 Months': 90}
+
+df['purchase_frequency_days']=df['frequency_of_purchases'].map(frequency_mapping)
+print(df[['frequency_of_purchases','purchase_frequency_days']].head(10))
+# now checking if discount_applied and promo_code_used, both of these ccolumns got the same value
+print((df['discount_applied'] == df['promo_code_used']).all())
+df = df.drop('promo_code_used', axis = 1)
+print(df.columns)
+print(df.duplicated().sum())
+print(df.head(10))
+
+
+
+# here is EDA is completed
+# no outliers were present
+# dupliacted columns are removed (promo_code_used)
+# null values are replaced with median based on each category
+# and for simplifying our analysis two new columns are created (age_group', 'purchase_frequency_days')
+
+#with this we will proceed with moving this data set into SQL
+
+#
+import urllib.parse
+
+from sqlalchemy import create_engine
+
+# Connection details
+username = "postgres"
+password = "Shub@123"
+host = "localhost"
+port = "5432"
+database = "customer_behaviour"  # Update this if your database name in pgAdmin is different
+
+# Safely encode the password so the '@' symbol doesn't break the connection string
+encoded_password = urllib.parse.quote_plus(password)
+
+# Create the SQLAlchemy engine using psycopg2
+engine = create_engine(
+    f"postgresql+psycopg2://{username}:{encoded_password}@{host}:{port}/{database}"
+)
+
+# Push your pandas DataFrame into pgAdmin
+table_name = "customer"
+df.to_sql(table_name, engine, if_exists="replace", index=False)
+
+print(
+    f"Data successfully loaded into table '{table_name}' in database '{database}'!"
+)
